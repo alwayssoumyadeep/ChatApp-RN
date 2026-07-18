@@ -24,8 +24,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "3188c22d-7dbe-427d-b510-846b9dbd219e"
+        "projectId": "26b129c6-0823-4c26-a983-039f4bef69e7"
       }
-    }
+    },
+    "owner": "mechat-team"
   }
 }
