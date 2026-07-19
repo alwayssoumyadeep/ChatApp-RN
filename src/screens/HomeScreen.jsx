@@ -76,9 +76,14 @@ export default function HomeScreen({ navigation }) {
 
       <View className="flex-row items-center justify-between px-5 py-3 border-b border-gray-100">
         <Text className="text-xl font-semibold text-gray-900">MeChat</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Feather name="log-out" size={20} color="#EF4444" />
-        </TouchableOpacity>
+        <View className="flex-row items-center" style={{ gap: 16 }}>
+          <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
+            <Feather name="user" size={20} color="#374151" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout}>
+            <Feather name="log-out" size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View className="px-5 py-3">
