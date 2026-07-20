@@ -3,8 +3,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-
-
 import {
   SafeAreaView,
   View,
@@ -15,74 +13,74 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
-
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../services/api";
 
 import Avatar from "../components/Avatar";
 import MessageBubble from "../components/MessageBubble";
 import MessageInput from "../components/MessageInput";
 
-
-
 export default function ChatScreen({
   navigation,
   route,
 }) {
-
   const { user } = route.params;
-
   const flatListRef = useRef(null);
-
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      senderId: user.uid,
-      text: "Hello",
-      time: "10:30 PM",
-    },
-    {
-      id: "2",
-      senderId: auth.currentUser.uid,
-      text: "Hi",
-      time: "10:31 PM",
-    },
-    {
-      id: "3",
-      senderId: user.uid,
-      text: "Bye",
-      time: "10:31 PM",
-    },
-    // {
-    //   id: "4",
-    //   senderId: auth.currentUser.uid,
-    //   text: "Bye 2",
-    //   time: "10:32 PM",
-    // },
-    // {
-    //   id: "5",
-    //   senderId: user.uid,
-    //   text: "Nice",
-    //   time: "10:33 PM",
-    // },
-  ]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-
-    setTimeout(() => {
-
-      flatListRef.current?.scrollToEnd({
-        animated: true,
-      });
-
-    }, 200);
-
+    const initUser = async () => {
+      const stored = await AsyncStorage.getItem("user");
+      if (stored) {
+        setCurrentUser(JSON.parse(stored));
+      }
+    };
+    initUser();
   }, []);
-    const sendMessage = (text) => {
-    if (!text.trim()) return;
 
-    const newMessage = {
+  useEffect(() => {
+    if (!currentUser || !user) return;
+    const currentUserId = currentUser.id || currentUser._id;
+    const receiverId = user._id || user.id;
+
+    if (!currentUserId || !receiverId) return;
+
+    const fetchMessages = async () => {
+      try {
+        const res = await api.get(`/messages/${currentUserId}/${receiverId}`);
+        if (res.data && res.data.messages) {
+          const formatted = res.data.messages.map((m) => ({
+            id: (m._id || m.id || Date.now() + Math.random()).toString(),
+            senderId: (m.senderId || "").toString(),
+            text: m.message,
+            time: m.createdAt
+              ? new Date(m.createdAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : m.time || "",
+          }));
+          setMessages(formatted);
+        }
+      } catch (err) {
+        console.log("Error fetching messages:", err.response?.data || err.message);
+      }
+    };
+
+    fetchMessages();
+  }, [currentUser, user]);
+
+  const sendMessage = async (text) => {
+    if (!text.trim() || !currentUser) return;
+
+    const currentUserId = currentUser.id || currentUser._id;
+    const receiverId = user._id || user.id;
+
+    const tempMessage = {
       id: Date.now().toString(),
-      senderId: auth.currentUser.uid,
+      senderId: (currentUserId || "").toString(),
       text,
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -90,14 +88,26 @@ export default function ChatScreen({
       }),
     };
 
-    setMessages((prev) => [...prev, newMessage]);
+    setMessages((prev) => [...prev, tempMessage]);
 
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({
         animated: true,
       });
     }, 100);
+
+    try {
+      await api.post("/messages", {
+        senderId: currentUserId,
+        receiverId,
+        message: text,
+      });
+    } catch (err) {
+      console.log("Error sending message:", err.response?.data || err.message);
+    }
   };
+
+  const currentUserIdStr = currentUser ? (currentUser.id || currentUser._id || "").toString() : "";
 
   return (
     <SafeAreaView
@@ -110,54 +120,32 @@ export default function ChatScreen({
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={StatusBar.currentHeight || 0}
-        
       >
-
         {/* Header */}
-
         <View className="flex-row items-center px-4 py-3 border-b border-gray-200 bg-white">
-
-          {/* Back Button */}
-
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-          >
-            <Feather
-              name="arrow-left"
-              size={26}
-              color="#111827"
-            />
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Feather name="arrow-left" size={26} color="#111827" />
           </TouchableOpacity>
-
-          {/* Avatar */}
 
           <View className="ml-3">
             <Avatar
-              name={user.name}
+              name={user.name || user.username || "User"}
               image={user.profilePicture}
               size={48}
             />
           </View>
 
-          {/* User Details */}
-
           <View className="ml-3 flex-1">
-
             <Text className="text-lg font-bold text-gray-900">
-              {user.name}
+              {user.name || user.username || "User"}
             </Text>
-
             <Text className="text-sm text-green-600">
-              {user.status === "online"
-                ? "Online"
-                : "Offline"}
+              {user.status === "online" || user.isOnline ? "Online" : "Offline"}
             </Text>
-
           </View>
-
         </View>
-                {/* Messages */}
 
+        {/* Messages */}
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -168,9 +156,7 @@ export default function ChatScreen({
             paddingBottom: 10,
           }}
           renderItem={({ item }) => (
-            <MessageBubble
-              message={item}
-            />
+            <MessageBubble message={item} currentUserId={currentUserIdStr} />
           )}
           onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({
@@ -186,11 +172,8 @@ export default function ChatScreen({
         />
 
         {/* Message Input */}
-
-        <MessageInput
-          onSend={sendMessage}
-        />
-              </KeyboardAvoidingView>
+        <MessageInput onSend={sendMessage} />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
