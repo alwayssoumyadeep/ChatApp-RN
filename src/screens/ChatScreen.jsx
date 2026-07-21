@@ -16,6 +16,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
+import socket from "../services/socket";
 
 import Avatar from "../components/Avatar";
 import MessageBubble from "../components/MessageBubble";
@@ -39,6 +40,18 @@ export default function ChatScreen({
     };
     initUser();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const currentUserId = currentUser.id || currentUser._id;
+
+    socket.connect();
+    socket.emit("register", currentUserId);
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser || !user) return;
@@ -72,6 +85,34 @@ export default function ChatScreen({
     fetchMessages();
   }, [currentUser, user]);
 
+  useEffect(() => {
+    const handleReceiveMessage = (data) => {
+      const receiverId = user._id || user.id;
+      const senderMatches = data.senderId === receiverId;
+
+      if (senderMatches) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString() + Math.random(),
+            senderId: data.senderId,
+            text: data.message,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    };
+
+    socket.on("receiveMessage", handleReceiveMessage);
+
+    return () => {
+      socket.off("receiveMessage", handleReceiveMessage);
+    };
+  }, [user]);
+
   const sendMessage = async (text) => {
     if (!text.trim() || !currentUser) return;
 
@@ -98,6 +139,12 @@ export default function ChatScreen({
 
     try {
       await api.post("/messages", {
+        receiverId,
+        message: text,
+      });
+
+      socket.emit("sendMessage", {
+        senderId: currentUserId,
         receiverId,
         message: text,
       });
