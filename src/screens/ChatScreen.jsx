@@ -98,7 +98,6 @@ export default function ChatScreen({
 
     try {
       await api.post("/messages", {
-        senderId: currentUserId,
         receiverId,
         message: text,
       });
