@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from "react";
 import {
   SafeAreaView,
@@ -37,6 +38,7 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
+
   useEffect(() => {
     const init = async () => {
       const stored = await AsyncStorage.getItem("user");
@@ -71,8 +73,16 @@ export default function HomeScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView
+      className="flex-1 bg-white"
+      style={{
+        paddingTop: StatusBar.currentHeight,
+      }}
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#fff"
+      />
 
       <View className="flex-row items-center justify-between px-5 py-3 border-b border-gray-100">
         <Text className="text-xl font-semibold text-gray-900">MeChat</Text>

@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  StatusBar
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -18,6 +19,8 @@ export default function ProfileScreen({ navigation }) {
   const [about, setAbout] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const MAX_USERNAME_LENGTH = 20;
+  const MAX_ABOUT_LENGTH = 100;
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -65,12 +68,17 @@ export default function ProfileScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView
+      className="flex-1 bg-white"
+      style={{
+        paddingTop: StatusBar.currentHeight,
+      }}
+    >
       <View className="flex-row items-center px-5 py-3 border-b border-gray-100">
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Feather name="arrow-left" size={22} color="#111827" />
         </TouchableOpacity>
-        <Text className="text-lg font-semibold text-gray-900 ml-4">Edit profile</Text>
+        <Text className="text-lg font-semibold text-gray-900 ml-4">Edit Profile</Text>
       </View>
 
       <View className="items-center mt-8">
@@ -79,33 +87,60 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </View>
 
-      <View className="px-6 mt-10">
-        <Text className="text-xs text-gray-400 mb-2">Username</Text>
-        <TextInput
-          value={username}
-          onChangeText={setUsername}
-          className="bg-gray-100 rounded-xl px-4 h-12 text-base mb-6"
-        />
-
-        <Text className="text-xs text-gray-400 mb-2">About</Text>
-        <TextInput
-          value={about}
-          onChangeText={setAbout}
-          multiline
-          className="bg-gray-100 rounded-xl px-4 py-3 text-base mb-8"
-          style={{ minHeight: 80, textAlignVertical: "top" }}
-        />
-
-        <TouchableOpacity
-          onPress={handleSave}
-          disabled={saving}
-          className="bg-blue-600 rounded-xl h-14 justify-center items-center"
-        >
-          <Text className="text-white text-lg font-bold">
-            {saving ? "Saving..." : "Save changes"}
+      <View className="mb-6">
+        <View className="flex-row items-center mb-2 ml-1">
+          <Feather name="at-sign" size={20} color="#6B7280" />
+          <Text className="ml-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+            Username
           </Text>
-        </TouchableOpacity>
+        </View>
+        <View className="bg-gray-100 rounded-xl px-4 py-3 border border-gray-200">
+          <TextInput
+            value={username}
+            onChangeText={setUsername}
+            maxLength={MAX_USERNAME_LENGTH}
+            className="text-base text-gray-900"
+          />
+        </View>
+        <Text className={`text-xs mt-1 mr-1 text-right ${username.length >= MAX_USERNAME_LENGTH ? "text-red-500" : "text-gray-400"}`}>
+          {username.length} / {MAX_USERNAME_LENGTH}
+        </Text>
       </View>
+
+      <View className="mb-8">
+        <View className="flex-row items-center mb-2 ml-1">
+          <Feather name="info" size={16} color="#6B7280" />
+          <Text className="ml-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+            About
+          </Text>
+        </View>
+        <View className="bg-gray-100 rounded-xl px-4 py-3 border border-gray-200 min-h-[80px]">
+          <TextInput
+            value={about}
+            onChangeText={setAbout}
+            maxLength={MAX_ABOUT_LENGTH}
+            multiline
+            textAlignVertical="top"
+            className="text-base text-gray-900 flex-1"
+          />
+        </View>
+        <Text className={`text-xs mt-1 mr-1 text-right ${about.length >= MAX_ABOUT_LENGTH ? "text-red-500" : "text-gray-400"}`}>
+          {about.length} / {MAX_ABOUT_LENGTH}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        onPress={handleSave}
+        disabled={saving}
+        // Changed from h-14 to h-12 (slightly less tall)
+        // Added w-11/12 and self-center to make it slightly narrower than the screen
+        // Added mt-2 to give it a little breathing room from the character counter
+        className="bg-blue-600 rounded-xl h-12 w-7/12 self-center justify-center items-center mt-2"
+      >
+        <Text className="text-white text-lg font-bold">
+          {saving ? "Saving..." : "Save changes"}
+        </Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }

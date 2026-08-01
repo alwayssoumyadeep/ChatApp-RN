@@ -4,44 +4,77 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
-
 import { Feather } from "@expo/vector-icons";
 
 export default function MessageInput({ onSend }) {
   const [message, setMessage] = useState("");
+  const [inputHeight, setInputHeight] = useState(40);
 
   const handleSend = () => {
     if (!message.trim()) return;
-
     onSend(message);
-
     setMessage("");
+    setInputHeight(40);
+  };
+
+  const handleContentSizeChange = (event) => {
+    const newHeight = Math.min(Math.max(40, event.nativeEvent.contentSize.height), 120);
+    setInputHeight(newHeight);
   };
 
   return (
-    <View className="flex-row items-center px-4 py-3 bg-white border-t border-gray-200">
+    <View style={{
+      flexDirection: "row",
+      alignItems: "flex-end",
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: "white",
+      borderTopWidth: 1,
+      borderTopColor: "#e5e7eb",
+    }}>
 
-      <View className="flex-1 flex-row items-center bg-gray-100 rounded-full px-4 h-12">
+      <View style={{
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#f3f4f6",
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        minHeight: inputHeight + 8,
+      }}>
 
         <TextInput
           placeholder="Type a message..."
           value={message}
           onChangeText={setMessage}
-          className="flex-1 text-base"
+          onContentSizeChange={handleContentSizeChange}
           multiline
+          numberOfLines={4}
+          style={{
+            flex: 1,
+            fontSize: 16,
+            height: inputHeight,
+            paddingVertical: 8,
+            color: "#000",
+          }}
         />
 
       </View>
 
       <TouchableOpacity
         onPress={handleSend}
-        className="ml-3 w-12 h-10 rounded-full bg-blue-600 justify-center items-center"
+        style={{
+          marginLeft: 8,
+          marginBottom: 2,
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: "#2563eb",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
       >
-        <Feather
-          name="send"
-          size={20}
-          color="white"
-        />
+        <Feather name="send" size={18} color="white" />
       </TouchableOpacity>
 
     </View>

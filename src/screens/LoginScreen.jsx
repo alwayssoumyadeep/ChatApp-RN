@@ -1,3 +1,4 @@
+import { generateKeyPair } from "../utils/crypto";
 import React, { useState } from "react";
 import {
   SafeAreaView,
@@ -22,6 +23,21 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const ensureKeysExist = async (user) => {
+    const userId = user.id || user._id;
+    const existingPrivateKey = await AsyncStorage.getItem(`privateKey_${userId}`);
+
+    if (!existingPrivateKey) {
+      const { privateKey, publicKey } = generateKeyPair();
+      await AsyncStorage.setItem(`privateKey_${userId}`, privateKey);
+      try {
+        await api.patch("/users/me", { publicKey });
+      } catch (err) {
+        console.log("Failed to upload public key:", err.response?.data || err.message);
+      }
+    }
+  };
+
   const handleLogin = async () => {
     if (!email || !password) {
       alert("Please fill in all fields");
@@ -36,6 +52,7 @@ export default function LoginScreen({ navigation }) {
 
       await AsyncStorage.setItem("token", res.data.token);
       await AsyncStorage.setItem("user", JSON.stringify(res.data.user));
+      await ensureKeysExist(res.data.user);
 
       navigation.replace("Home");
     } catch (error) {
@@ -69,6 +86,7 @@ export default function LoginScreen({ navigation }) {
 
       await AsyncStorage.setItem("token", res.data.token);
       await AsyncStorage.setItem("user", JSON.stringify(res.data.user));
+      await ensureKeysExist(res.data.user);
 
       alert("Account Created Successfully!");
       navigation.replace("Home");
@@ -79,7 +97,12 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView
+      className="flex-1 bg-white"
+      style={{
+        paddingTop: StatusBar.currentHeight,
+      }}
+    >
       <View className="flex-1 justify-center px-8">
 
         <Image
