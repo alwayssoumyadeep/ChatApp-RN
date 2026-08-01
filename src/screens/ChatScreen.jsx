@@ -1,3 +1,5 @@
+import MessageActionModal from "../components/MessageActionModal";
+import { deriveSharedKey, encryptMessage, decryptMessage } from "../utils/crypto";
 import React, {
   useEffect,
   useRef,
@@ -12,7 +14,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Keyboard
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
@@ -27,9 +31,31 @@ export default function ChatScreen({
   route,
 }) {
   const { user } = route.params;
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [sharedKey, setSharedKey] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  useEffect(() => {
+    const setupKey = async () => {
+      if (!currentUser || !user) return;
+      const currentUserId = currentUser.id || currentUser._id;
+
+      const myPrivateKey = await AsyncStorage.getItem(`privateKey_${currentUserId}`);
+      const theirPublicKey = user.publicKey;
+
+      if (!myPrivateKey || !theirPublicKey) {
+        return;
+      }
+
+      const key = deriveSharedKey(myPrivateKey, theirPublicKey);
+      setSharedKey(key);
+    };
+    setupKey();
+  }, [currentUser, user]);
 
   useEffect(() => {
     const initUser = async () => {
@@ -54,7 +80,7 @@ export default function ChatScreen({
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser || !user) return;
+    if (!currentUser || !user || !sharedKey) return;
     const currentUserId = currentUser.id || currentUser._id;
     const receiverId = user._id || user.id;
 
@@ -63,27 +89,25 @@ export default function ChatScreen({
     const fetchMessages = async () => {
       try {
         const res = await api.get(`/messages/${currentUserId}/${receiverId}`);
-        if (res.data && res.data.messages) {
+        if (res?.data?.messages) {
           const formatted = res.data.messages.map((m) => ({
-            id: (m._id || m.id || Date.now() + Math.random()).toString(),
+            id: (m._id || m.id || Math.random()).toString(),
             senderId: (m.senderId || "").toString(),
-            text: m.message,
+            text: decryptMessage(m.message, m.iv, sharedKey),
             time: m.createdAt
-              ? new Date(m.createdAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
+              ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : m.time || "",
+            reaction: m.reaction || null,
           }));
           setMessages(formatted);
         }
       } catch (err) {
-        console.log("Error fetching messages:", err.response?.data || err.message);
+        console.log("Error fetching messages:", err?.message);
       }
     };
 
     fetchMessages();
-  }, [currentUser, user]);
+  }, [currentUser, user, sharedKey]);
 
   useEffect(() => {
     const handleReceiveMessage = (data) => {
@@ -96,13 +120,10 @@ export default function ChatScreen({
           {
             id: Date.now().toString() + Math.random(),
             senderId: data.senderId,
-            text: data.message,
+            text: sharedKey ? decryptMessage(data.message, data.iv, sharedKey) : "[Unable to decrypt]",
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           },
         ]);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
       }
     };
 
@@ -111,63 +132,69 @@ export default function ChatScreen({
     return () => {
       socket.off("receiveMessage", handleReceiveMessage);
     };
-  }, [user]);
+  }, [user, sharedKey]);
 
   const sendMessage = async (text) => {
     if (!text.trim() || !currentUser) return;
 
     const currentUserId = currentUser.id || currentUser._id;
-    const receiverId = user._id || user.id;
+    const receiverId = user?._id || user?.id;
+    const tempId = Date.now().toString();
 
     const tempMessage = {
-      id: Date.now().toString(),
+      id: tempId,
       senderId: (currentUserId || "").toString(),
       text,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      reaction: null
     };
 
     setMessages((prev) => [...prev, tempMessage]);
 
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({
-        animated: true,
-      });
-    }, 100);
+    if (!sharedKey) return;
+    const { ciphertext, iv } = encryptMessage(text, sharedKey);
 
     try {
-      await api.post("/messages", {
+      const res = await api.post("/messages", {
         receiverId,
-        message: text,
+        message: ciphertext,
+        iv
       });
 
+      const realMongoId = res?.data?.data?._id;
+      if (realMongoId) {
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === tempId ? { ...msg, id: realMongoId.toString() } : msg))
+        );
+      }
+
       socket.emit("sendMessage", {
+        id: realMongoId ? realMongoId.toString() : tempId,
         senderId: currentUserId,
         receiverId,
-        message: text,
+        message: ciphertext,
+        iv
       });
     } catch (err) {
-      console.log("Error sending message:", err.response?.data || err.message);
+      console.log("Error sending message:", err?.message);
     }
   };
 
   const currentUserIdStr = currentUser ? (currentUser.id || currentUser._id || "").toString() : "";
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-white"
-      style={{
-        paddingTop: StatusBar.currentHeight,
-      }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "white" }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={StatusBar.currentHeight || 0}
+      <SafeAreaView
+        className="flex-1 bg-white"
+        style={{
+          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+        }}
       >
-        {/* Header */}
+
         <View className="flex-row items-center px-4 py-3 border-b border-gray-200 bg-white">
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Feather name="arrow-left" size={26} color="#111827" />
@@ -191,35 +218,56 @@ export default function ChatScreen({
           </View>
         </View>
 
-        {/* Messages */}
         <FlatList
           ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingVertical: 15,
-            paddingBottom: 10,
-          }}
+          data={[...messages].reverse()}
+          inverted={true}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
           renderItem={({ item }) => (
-            <MessageBubble message={item} currentUserId={currentUserIdStr} />
+            <MessageBubble 
+              message={item} 
+              currentUserId={currentUserIdStr} 
+              onLongPress={() => {
+                setSelectedMessage(item);
+                setIsModalVisible(true);
+              }}
+            />
           )}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({
-              animated: true,
-            })
-          }
-          onLayout={() =>
-            flatListRef.current?.scrollToEnd({
-              animated: true,
-            })
-          }
-          keyboardShouldPersistTaps="handled"
         />
 
-        {/* Message Input */}
         <MessageInput onSend={sendMessage} />
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+
+        <MessageActionModal
+          visible={isModalVisible}
+          message={selectedMessage}
+          onClose={() => setIsModalVisible(false)}
+          onReact={async (emoji) => {
+            if (!selectedMessage?.id) return; 
+
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === selectedMessage.id ? { ...msg, reaction: emoji } : msg
+              )
+            );
+            
+            try {
+              await api.patch(`/messages/${selectedMessage.id}/react`, { reaction: emoji });
+              
+              socket.emit("reactMessage", { 
+                messageId: selectedMessage.id, 
+                reaction: emoji, 
+                receiverId: user?._id || user?.id 
+              });
+            } catch (err) {
+              console.log("Reaction API Error Details:", err?.response?.data || err?.message);
+            }
+          }}
+        />
+
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
