@@ -217,7 +217,6 @@ export default function ChatScreen({
           keyboardShouldPersistTaps="handled"
         />
 
-        {/* Message input */}
         <MessageInput onSend={sendMessage} />
       </KeyboardAvoidingView>
     </SafeAreaView>
