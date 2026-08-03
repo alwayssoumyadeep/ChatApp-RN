@@ -21,7 +21,7 @@ import socket from "../services/socket";
 import Avatar from "../components/Avatar";
 import MessageBubble from "../components/MessageBubble";
 import MessageInput from "../components/MessageInput";
-
+    
 export default function ChatScreen({
   navigation,
   route,
