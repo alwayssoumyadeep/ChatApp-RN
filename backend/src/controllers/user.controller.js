@@ -24,7 +24,7 @@ async function getMyProfile(req, res) {
 
 async function updateMyProfile(req, res) {
   try {
-    const { username, about, profilePicture } = req.body;
+    const { username, about, publicKey } = req.body;
 
     if (username) {
       const existing = await userModel.findOne({ username, _id: { $ne: req.userId } });
@@ -37,7 +37,7 @@ async function updateMyProfile(req, res) {
         $set: {
           ...(username && { username }),
           ...(about !== undefined && { about }),
-          ...(profilePicture !== undefined && { profilePicture }),
+          ...(publicKey !== undefined && { publicKey }),
         },
       },
       { new: true }

@@ -10,6 +10,7 @@ import {
 import Feather from "react-native-vector-icons/Feather";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
+import socket from "../services/socket";
 
 export default function LoginScreen({ navigation }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -36,6 +37,8 @@ export default function LoginScreen({ navigation }) {
 
       await AsyncStorage.setItem("token", res.data.token);
       await AsyncStorage.setItem("user", JSON.stringify(res.data.user));
+      socket.connect();
+      socket.emit("register", res.data.user.id || res.data.user._id);
 
       navigation.replace("Home");
     } catch (error) {
@@ -69,6 +72,8 @@ export default function LoginScreen({ navigation }) {
 
       await AsyncStorage.setItem("token", res.data.token);
       await AsyncStorage.setItem("user", JSON.stringify(res.data.user));
+      socket.connect();
+      socket.emit("register", res.data.user.id || res.data.user._id);
 
       alert("Account Created Successfully!");
       navigation.replace("Home");

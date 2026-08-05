@@ -4,10 +4,10 @@ const mongoose = require('mongoose');
 async function sendMessage(req, res) {
   try {
     const senderId = req.userId;
-    const { receiverId, message } = req.body;
+    const { receiverId, message, iv } = req.body;
 
-    if (!receiverId || !message || !message.trim()) {
-      return res.status(400).json({ message: "receiverId and message are required" });
+    if (!receiverId || !message || !iv) {
+      return res.status(400).json({ message: "receiverId, message, and iv are required" });
     }
 
     if (!mongoose.Types.ObjectId.isValid(receiverId)) {
@@ -17,7 +17,8 @@ async function sendMessage(req, res) {
     const newMessage = await Message.create({
       senderId,
       receiverId,
-      message: message.trim()
+      message,
+      iv,
     });
 
     res.status(201).json({

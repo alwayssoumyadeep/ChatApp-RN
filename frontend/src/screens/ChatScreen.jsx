@@ -41,17 +41,7 @@ export default function ChatScreen({
     initUser();
   }, []);
 
-  useEffect(() => {
-    if (!currentUser) return;
-    const currentUserId = currentUser.id || currentUser._id;
 
-    socket.connect();
-    socket.emit("register", currentUserId);
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser || !user) return;
