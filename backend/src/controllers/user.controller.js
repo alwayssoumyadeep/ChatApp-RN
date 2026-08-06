@@ -49,7 +49,14 @@ async function updateMyProfile(req, res) {
   }
 }
 
+async function getUserById(req, res) {
+  try {
+    const user = await userModel.findById(req.params.userId).select("username email publicKey isOnline");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.status(200).json({ user });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+}
 
-
-
-module.exports = { getAllUsers, getMyProfile, updateMyProfile };
+module.exports = { getAllUsers, getMyProfile, updateMyProfile, getUserById };

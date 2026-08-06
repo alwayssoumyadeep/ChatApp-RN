@@ -21,7 +21,9 @@ import socket from "../services/socket";
 import Avatar from "../components/Avatar";
 import MessageBubble from "../components/MessageBubble";
 import MessageInput from "../components/MessageInput";
-    
+import { deriveSharedKey, encryptMessage, decryptMessage } from "../utils/crypto";
+import { bytesToHex } from "@noble/curves/utils.js";
+
 export default function ChatScreen({
   navigation,
   route,
@@ -30,6 +32,7 @@ export default function ChatScreen({
   const flatListRef = useRef(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [sharedKey, setSharedKey] = useState(null);
 
   useEffect(() => {
     const initUser = async () => {
@@ -41,7 +44,42 @@ export default function ChatScreen({
     initUser();
   }, []);
 
+  useEffect(() => {
+  const setupKey = async () => {
+    console.log("STEP 2 - setupKey running. currentUser:", currentUser, "user:", user);
+    if (!currentUser || !user) {
+      console.log("STEP 2 - exiting early, missing currentUser or user");
+      return;
+    }
+    const currentUserId = currentUser.id || currentUser._id;
+    const receiverId = user._id || user.id;
 
+    const myPrivateKey = await AsyncStorage.getItem(`privateKey_${currentUserId}`);
+    console.log("STEP 3 - myPrivateKey found?", !!myPrivateKey);
+    if (!myPrivateKey) {
+      console.log("No local private key found for current user");
+      return;
+    }
+
+    try {
+      const res = await api.get(`/users/${receiverId}`);
+      const theirPublicKey = res.data.user.publicKey;
+      console.log("STEP 4 - theirPublicKey found?", !!theirPublicKey);
+
+      if (!theirPublicKey) {
+        console.log("Receiver has no public key yet");
+        return;
+      }
+
+      const key = deriveSharedKey(myPrivateKey, theirPublicKey);
+      setSharedKey(key);
+      console.log("=====SHARED KEY=====", bytesToHex(key), "=====END=====");
+    } catch (err) {
+      console.log("Failed to fetch receiver public key:", err.response?.data || err.message);
+    }
+  };
+  setupKey();
+}, [currentUser, user]);
 
   useEffect(() => {
     if (!currentUser || !user) return;
@@ -57,7 +95,7 @@ export default function ChatScreen({
           const formatted = res.data.messages.map((m) => ({
             id: (m._id || m.id || Date.now() + Math.random()).toString(),
             senderId: (m.senderId || "").toString(),
-            text: m.message,
+            text: sharedKey ? decryptMessage(m.message, m.iv, sharedKey) : "[Loading keys...]",
             time: m.createdAt
               ? new Date(m.createdAt).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -73,7 +111,7 @@ export default function ChatScreen({
     };
 
     fetchMessages();
-  }, [currentUser, user]);
+  }, [currentUser, user, sharedKey]);
 
   useEffect(() => {
     const handleReceiveMessage = (data) => {
@@ -86,7 +124,7 @@ export default function ChatScreen({
           {
             id: Date.now().toString() + Math.random(),
             senderId: data.senderId,
-            text: data.message,
+            text: sharedKey ? decryptMessage(data.message, data.iv, sharedKey) : "[Unable to decrypt]",
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           },
         ]);
@@ -101,13 +139,31 @@ export default function ChatScreen({
     return () => {
       socket.off("receiveMessage", handleReceiveMessage);
     };
-  }, [user]);
+  }, [user, sharedKey]);
+
+  useEffect(() => {
+  const initUser = async () => {
+    const stored = await AsyncStorage.getItem("user");
+    console.log("STEP 1 - stored user:", stored);
+    if (stored) {
+      setCurrentUser(JSON.parse(stored));
+    }
+  };
+  initUser();
+}, []);
 
   const sendMessage = async (text) => {
     if (!text.trim() || !currentUser) return;
 
     const currentUserId = currentUser.id || currentUser._id;
     const receiverId = user._id || user.id;
+
+    if (!sharedKey) {
+      console.log("Encryption key not ready yet");
+      return;
+    }
+
+    const { ciphertext, iv } = encryptMessage(text, sharedKey);
 
     const tempMessage = {
       id: Date.now().toString(),
@@ -127,17 +183,22 @@ export default function ChatScreen({
       });
     }, 100);
 
+    console.log("Attempting to send:", { receiverId, ciphertext, iv });
+
     try {
       await api.post("/messages", {
         receiverId,
-        message: text,
+        message: ciphertext,
+        iv,
       });
 
       socket.emit("sendMessage", {
         senderId: currentUserId,
         receiverId,
-        message: text,
+        message: ciphertext,
+        iv,
       });
+      console.log("Message sent successfully to backend");
     } catch (err) {
       console.log("Error sending message:", err.response?.data || err.message);
     }
