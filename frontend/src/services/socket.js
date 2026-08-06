@@ -1,6 +1,7 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = "https://mechat-backend-pb8y.onrender.com";
+// src/services/socket.js
+const SOCKET_URL = "http://192.168.31.247:3000";
 
 const socket = io(SOCKET_URL, {
   autoConnect: false,
