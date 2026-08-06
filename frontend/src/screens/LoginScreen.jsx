@@ -11,6 +11,7 @@ import Feather from "react-native-vector-icons/Feather";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
 import socket from "../services/socket";
+import { generateKeyPair } from "../utils/crypto";
 
 export default function LoginScreen({ navigation }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -22,6 +23,21 @@ export default function LoginScreen({ navigation }) {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const ensureKeysExist = async (user) => {
+  const userId = user.id || user._id;
+  const existingPrivateKey = await AsyncStorage.getItem(`privateKey_${userId}`);
+
+  if (!existingPrivateKey) {
+    const { privateKey, publicKey } = generateKeyPair();
+    await AsyncStorage.setItem(`privateKey_${userId}`, privateKey);
+    try {
+      await api.patch("/users/me", { publicKey });
+    } catch (err) {
+      console.log("Failed to upload public key:", err.response?.data || err.message);
+    }
+  }
+};
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -37,6 +53,7 @@ export default function LoginScreen({ navigation }) {
 
       await AsyncStorage.setItem("token", res.data.token);
       await AsyncStorage.setItem("user", JSON.stringify(res.data.user));
+      await ensureKeysExist(res.data.user);
       socket.connect();
       socket.emit("register", res.data.user.id || res.data.user._id);
 
@@ -72,6 +89,7 @@ export default function LoginScreen({ navigation }) {
 
       await AsyncStorage.setItem("token", res.data.token);
       await AsyncStorage.setItem("user", JSON.stringify(res.data.user));
+      await ensureKeysExist(res.data.user);
       socket.connect();
       socket.emit("register", res.data.user.id || res.data.user._id);
 
