@@ -6,8 +6,9 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   about: { type: String, default: "Hey there! I'm using MeChat." },
   profilePicture: { type: String, default: "" },
-  publicKey: { type: String, default: null },  // for RSA/ECC, added later
+  publicKey: { type: String, default: null },
   isOnline: { type: Boolean, default: false },
+  lastSeen: { type: Date, default: null },
 }, { timestamps: true });
 
 const userModel = mongoose.model("user", userSchema);

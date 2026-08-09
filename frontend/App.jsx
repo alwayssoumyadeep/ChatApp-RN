@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppNavigator from "./src/navigation/AppNavigator";
 import socket from "./src/services/socket";
+import { ThemeProvider } from "./src/theme/ThemeContext";
 
 export default function App() {
   useEffect(() => {
@@ -22,5 +23,9 @@ export default function App() {
     };
   }, []);
 
-  return <AppNavigator />;
-}
+  return (
+    <ThemeProvider>
+      <AppNavigator />
+    </ThemeProvider>
+  );
+}
